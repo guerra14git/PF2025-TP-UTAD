@@ -21,9 +21,9 @@ funcoes de print "    "    "    "
 -}
 
 module Fileread
-    (Jogador, TorneioAVE, ResutadoAVE, ResultadosAVE, Equipa, TorneioElim, ResultadoElim, ResultadosElim, --Tipos exportados   
-    readTorneioAVE, readResultadosTorneioAVE, --Funcoes exportadas
-    printTorneioAVE, printResultadosTorneioAVE, 
+    (Jogador, TorneioAVE, ResultadoAVE, ResultadosAVE, Equipa, TorneioElim, ResultadoElim, ResultadosElim, --Tipos exportados
+    readTorneioAVE, readResultadosTorneioAVE, readTorneioElim, readResultadosTorneioElim, --Funcoes exportadas
+    printTorneioAVE, printResultadosTorneioAVE,
     printTorneioElim, printResultadosTorneioElim
     ) where
 
@@ -62,3 +62,79 @@ splitByComma (x:xs)
   | otherwise = (x : head rest) : tail rest
   where
     rest = splitByComma xs
+
+readTorneioAVE :: String -> IO TorneioAVE -- recebe string (nome do ficheiro csv) e devolve valor tipo TorneioAVE: (String, Int, [Jogador])
+readTorneioAVE fileName = do -- do significa que vai executar varias acoes io input output
+  content <- readFile fileName -- le o file e guarda na var content 
+  let linhas = map trim (lines content) -- divide texto em lista de linhas e usa trim para tirar espacos
+      nome = head linhas -- head devolve primeiro elemento da lista linhas
+      rondas = read (linhas !! 1) :: Int -- atribui a rondas o valor inteiro da 2 linha do ficheiro
+      jogadores = map parseJogador (drop 2 linhas) -- drop 2 linhas remove as 2 primeiras linhas e map aplica a funcao parseJogador a cada linha restante
+  return (nome, rondas, jogadores)
+  where
+    parseJogador :: String -> Jogador --devolve tupla
+    parseJogador linha =
+      case splitByComma linha of -- usa a splitbycomma para dividir a linha
+        [n, v, p, a] -> (n, read v, read p, read a) -- se houver 4 elem , atribui e devolve a tupla
+        [n, v, p]    -> let vg = read v -- se houver 3 elem, atribui 0.0 a avg e etc ... 
+                            vp = read p
+                            ave = fromIntegral vg / fromIntegral (vg + vp)
+                        in (n, vg, vp, ave)
+        [n]          -> (n, 0, 0, 0.0)
+        _            -> ("", 0, 0, 0.0) -- caso contrario devolve valores por defeito
+
+readResultadosTorneioAVE :: String -> IO ResultadosAVE
+readResultadosTorneioAVE fileName = do --
+  content <- readFile fileName 
+  let ls = filter (not . null) $ map trim $ lines content -- remove linhas vazias e espacos
+  return $ map parseRes (drop 1 ls) -- ignora a primeira linha (header) e aplica parseRes a cada linha
+  where
+    parseRes line =
+      case splitByComma line of -- usa a splitbycomma para dividir a linha
+        (j1:j2:s1:s2:_) -> (j1, j2, parseInt s1, parseInt s2)
+        _ -> ("", "", 0, 0)
+
+readTorneioElim :: String -> IO TorneioElim
+readTorneioElim fileName = do
+  content <- readFile fileName
+  let ls = filter (not . null) $ map trim $ lines content -- remove linhas vazias e espacos
+  case ls of
+    (nome:rest) -> return (nome, concatMap splitByComma rest) -- concatMap aplica splitByComma a cada linha
+    _ -> return ("", [])
+
+readResultadosTorneioElim :: String -> IO ResultadosElim
+readResultadosTorneioElim fileName = do
+  content <- readFile fileName
+  let ls = filter (not . null) $ map trim $ lines content
+  return $ map parseLine (drop 1 ls)
+  where
+    parseLine line =
+      case splitByComma line of
+        (a:b:v:_) -> (a, b, v) -- devolve tupla
+        _ -> ("", "", "")
+
+printTorneioAVE :: TorneioAVE -> IO () -- funcao de print do tipo IO que nao devolve nada (())
+printTorneioAVE (nome, n, jogadores) = do
+  putStrLn $ "Torneio: " ++ nome 
+  putStrLn $ "Número de rondas: " ++ show n
+  putStrLn "Jogador | Ganhos | Perdidos | AVE"
+  putStrLn "---------------------------------"
+  mapM_ (\(j,g,p,a) -> putStrLn $ intercalate " | " [j, show g, show p, show a]) jogadores -- mapM_ aplica a funcao a cada elem da lista jogadores
+
+printResultadosTorneioAVE :: ResultadosAVE -> IO () 
+printResultadosTorneioAVE resultados = do
+  putStrLn "Resultados (AVE):"
+  mapM_ (\(j1,j2,s1,s2) -> putStrLn $ j1 ++ " " ++ show s1 ++ " - " ++ show s2 ++ " " ++ j2) resultados -- imprime resultados
+
+printTorneioElim :: TorneioElim -> IO ()
+printTorneioElim (nome, equipas) = do
+  putStrLn $ "Torneio: " ++ nome
+  putStrLn "Equipas:"
+  mapM_ (\e -> putStrLn ("- " ++ e)) equipas
+
+printResultadosTorneioElim :: ResultadosElim -> IO ()
+printResultadosTorneioElim resultados = do
+  putStrLn "Resultados (Elim):"
+  mapM_ (\(a,b,v) -> putStrLn $ a ++ " vs " ++ b ++ " -> " ++ v) resultados
+
+-- prmeira tarefa completa pa entrega
